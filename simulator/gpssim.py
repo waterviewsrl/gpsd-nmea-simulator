@@ -5,7 +5,7 @@ import operator
 import random
 import sys
 import threading
-from thread import *
+from _thread import *
 import time
 import socket
 
@@ -316,7 +316,7 @@ class ModelGnssReceiver(object):
         data += self.__mode + ','
 
         if self.num_sats >= self.__GSA_SV_LIMIT:
-            for i in xrange(self.__GSA_SV_LIMIT):
+            for i in range(self.__GSA_SV_LIMIT):
                 data += ('%d' % self.__visible_prns[i]) + ','
         else:
             for prn in self.__visible_prns:
@@ -343,19 +343,19 @@ class ModelGnssReceiver(object):
             return []
 
         # Work out how many GSV sentences are required to show all satellites
-        messages = [''] * ((self.num_sats + self.__GSV_SV_LIMIT -
+        messages = [''] * int((self.num_sats + self.__GSV_SV_LIMIT -
                             1) / self.__GSV_SV_LIMIT)
         prn_i = 0
 
         # Iterate through each block of satellites
-        for i in xrange(len(messages)):
+        for i in range(len(messages)):
             data = ''
             data += ('%d' % len(messages)) + ','
             data += ('%d' % (i + 1)) + ','
             data += ('%d' % self.num_sats) + ','
 
             # Iterate through each satellite in the block
-            for j in xrange(self.__GSV_SV_LIMIT):
+            for j in range(self.__GSV_SV_LIMIT):
                 if prn_i < self.num_sats:
                     satellite = next((sat for sat in self.satellites if sat.prn == self.__visible_prns[prn_i]))
                     data += ('%d' % satellite.prn) + ','
@@ -515,9 +515,11 @@ class ModelGnssReceiver(object):
         self.output = output
         self.has_rtc = has_rtc
 
+        self.life = 0
+
         # Create all dummy satellites with random conditions
         self.satellites = []
-        for prn in xrange(self.__min_sv_number, self.__max_sv_number + 1):
+        for prn in range(self.__min_sv_number, self.__max_sv_number + 1):
             self.satellites.append(ModelSatellite(
                 prn, azimuth=random.random() * 360, snr=30 + random.random() * 10))
 
@@ -624,9 +626,9 @@ class ModelGnssReceiver(object):
         # Randomly make the requested number visible, make the rest invisible
         # (negative elevation)
         random.shuffle(self.satellites)
-        for i in xrange(value):
+        for i in range(value):
             self.satellites[i].elevation = random.random() * 90
-        for i in xrange(value, len(self.satellites)):
+        for i in range(value, len(self.satellites)):
             self.satellites[i].elevation = -90
         self.satellites.sort(key=operator.attrgetter('prn', ))
         self.__recalculate()
@@ -638,7 +640,7 @@ class ModelGnssReceiver(object):
     @output.setter
     def output(self, value):
         for item in value:
-            assert item in self.__gen_nmea.keys()
+            assert item in list(self.__gen_nmea.keys())
         self.__output = value
 
     @property
@@ -665,7 +667,10 @@ class ModelGnssReceiver(object):
         ''' 'Move' the GNSS instance for the specified duration in seconds based on current heading and velocity.
         '''
         self.__recalculate()
-        if self.lat is not None and self.lon is not None and self.heading is not None and self.kph is not None and self.kph > sys.float_info.epsilon:
+        if self.lat is not None and self.lon is not None and self.heading is not None and self.kph is not None:
+            self.kph = 65 + 65*math.sin((self.life/600)*2*math.pi) 
+            self.heading = (self.life/600)*360
+            self.life = self.life + duration
             speed_ms = self.kph * 1000.0 / 3600.0
             d = speed_ms * duration
             out = Geodesic.WGS84.Direct(self.lat, self.lon, self.heading, d)
@@ -691,7 +696,7 @@ class ModelGnssReceiver(object):
     def supported_output(self):
         ''' Returns a tuple of supported NMEA sentences that the GNSS model class is capable of producing.
         '''
-        return self.__gen_nmea.keys()
+        return list(self.__gen_nmea.keys())
 
 
 class ModelGpsReceiver(ModelGnssReceiver):
@@ -774,7 +779,7 @@ class GpsSim(object):
                 for sentence in output:
                     if not self.__run.is_set():
                         break
-                    conn.sendall(sentence + "\r\n")
+                    conn.sendall(sentence.encode() + b"\r\n")
 
             if self.__run.is_set():
                 time.sleep(0.1)  # Minimum sleep to avoid long lock ups
@@ -894,7 +899,7 @@ if __name__ == '__main__':
     port = 8888
     if len(sys.argv) > 1:
         if sys.argv[1] == '--help' or sys.argv[1] == '-h':
-            print "Usage: %s [serial port]" % sys.argv[0]
+            print(("Usage: %s [serial port]" % sys.argv[0]))
             sys.exit(0)
         port = sys.argv[1]
     sim.serve(port)
